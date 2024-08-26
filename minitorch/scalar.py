@@ -20,6 +20,7 @@ from .scalar_functions import (
     Sigmoid,
 )
 
+# ScalarLike can be `float`, `int` and `Scalar` type
 ScalarLike = Union[float, int, "Scalar"]
 
 
@@ -36,6 +37,7 @@ class ScalarHistory:
 
     """
 
+    # last_fn is Class type of ScalarFunction(not instance of ScalarFunction)
     last_fn: Optional[Type[ScalarFunction]] = None
     ctx: Optional[Context] = None
     inputs: Sequence[Scalar] = ()
@@ -83,34 +85,37 @@ class Scalar:
         return "Scalar(%f)" % self.data
 
     def __mul__(self, b: ScalarLike) -> Scalar:
+        # self is stored in vals
         return Mul.apply(self, b)
 
+    # self is dividend, b is divisor
     def __truediv__(self, b: ScalarLike) -> Scalar:
         return Mul.apply(self, Inv.apply(b))
 
+    # b is dividend, self is divisor
     def __rtruediv__(self, b: ScalarLike) -> Scalar:
         return Mul.apply(b, Inv.apply(self))
 
     def __add__(self, b: ScalarLike) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return Add.apply(self, b)
 
     def __bool__(self) -> bool:
         return bool(self.data)
 
     def __lt__(self, b: ScalarLike) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return LT.apply(self, b)
 
     def __gt__(self, b: ScalarLike) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return LT.apply(b, self)
 
     def __eq__(self, b: ScalarLike) -> Scalar:  # type: ignore[override]
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return EQ.apply(self, b)
 
     def __sub__(self, b: ScalarLike) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return Add.apply(self, Neg.apply(b))
 
     def __neg__(self) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return Neg.apply(self)
 
     def __radd__(self, b: ScalarLike) -> Scalar:
         return self + b
@@ -119,16 +124,16 @@ class Scalar:
         return self * b
 
     def log(self) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return Log.apply(self)
 
     def exp(self) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return Exp.apply(self)
 
     def sigmoid(self) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return Sigmoid.apply(self)
 
     def relu(self) -> Scalar:
-        raise NotImplementedError("Need to include this file from past assignment.")
+        return ReLU.apply(self)
 
     # Variable elements for backprop
 
@@ -143,7 +148,7 @@ class Scalar:
         assert self.is_leaf(), "Only leaf variables can have derivatives."
         if self.derivative is None:
             self.derivative = 0.0
-        self.derivative += x
+        self.derivative += x  # Each iteration, derivative is accumulated
 
     def is_leaf(self) -> bool:
         "True if this variable created by the user (no `last_fn`)"
@@ -163,7 +168,14 @@ class Scalar:
         assert h.last_fn is not None
         assert h.ctx is not None
 
-        raise NotImplementedError("Need to include this file from past assignment.")
+        # if we konw \hat{vj}(d_output in here), `f`: vj = f(vi)
+        # we need to get \hat{v_{i->j}} by chain rule
+        # \hat{v_{i->j}} = \hat{v_j} * f'(v_i)
+        # v_i in here is `h.ctx.saved_values`
+        #      f
+        # v1 -----> v2
+        x = h.last_fn._backward(h.ctx, d_output)
+        return zip(h.inputs, x)
 
     def backward(self, d_output: Optional[float] = None) -> None:
         """
@@ -175,7 +187,9 @@ class Scalar:
         """
         if d_output is None:
             d_output = 1.0
-        backpropagate(self, d_output)
+        backpropagate(
+            self, d_output
+        )  # for the most right variable, derivative is d_output
 
 
 def derivative_check(f: Any, *scalars: Scalar) -> None:
